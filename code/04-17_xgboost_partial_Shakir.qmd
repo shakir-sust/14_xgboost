@@ -185,7 +185,9 @@ The `trees` hyperparameter refers to the number of boosting rounds, or how many 
 
 The `learn_rate` (also called `eta`) controls how much influence each tree has on the final model. It's essentially the step size used in gradient descent. Smaller values (like 0.01) make the model learn slowly and carefully, requiring more trees. Larger values (like 0.3) speed up learning but may increase the risk of overfitting. Common ranges are from 0.01 to 0.3. Lower values typically result in better generalization.
 
-![Gradient Descent Steps](https://bradleyboehmke.github.io/HOML/10-gradient-boosting_files/figure-html/gradient-descent-fig-1.png) ![](https://kevinvecmanis.io/assets/xgb_tuning/learning.png) \## 🧪 Sample Size
+![Gradient Descent Steps](https://bradleyboehmke.github.io/HOML/10-gradient-boosting_files/figure-html/gradient-descent-fig-1.png) ![](https://kevinvecmanis.io/assets/xgb_tuning/learning.png)
+
+## 🧪 Sample Size
 
 The `sample_size` parameter determines the proportion of the training data used to fit each tree (row subsampling). A value of 1 means all rows are used; values like 0.5–0.8 are commonly used to add randomness and reduce overfitting.
 
@@ -359,15 +361,21 @@ XgBoost **hyperparameters**:
 -   **`learn_rate`**: Also known as `eta`, it controls how much each additional tree contributes to the overall model. Smaller values make the model more stable but require more trees.
 
 ```{r xgb_spec}
-xgb_spec <- #Specifying XgBoost as our model type, asking to tune the hyperparameters
+xgb_spec <- boost_tree(
+  trees = tune(),
+  tree_depth = tune(),  # Maximum depth of each tree
+  min_n = tune(),  # Minimum samples required to split a node
+  learn_rate = tune()) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
+  set_engine("xgboost") %>% #specify engine 
+  set_mode("regression")  # Set to mode
    # Total number of boosting iterations
-         # Maximum depth of each tree
-             # Minimum samples required to split a node
+        
+            
         # Step size shrinkage for each boosting step
 
-        #specify engine 
+       
   
-       # Set to mode
+       
 xgb_spec
 
 ```
@@ -390,7 +398,15 @@ resampling_foldcv$splits[[1]]
 We use Latin hypercube sampling to generate a diverse grid of hyperparameter combinations:
 
 ```{r }
-xgb_grid <- 
+xgb_grid <- grid_latin_hypercube(
+  tree_depth(),
+  min_n(),
+  learn_rate(),
+  trees(),
+  
+  size = 100 #100 combinations of all 4 hyperparameters to fine tune these hyperparameters
+  
+)
 
 xgb_grid
 ```
@@ -399,8 +415,8 @@ xgb_grid
 ggplot(data = xgb_grid,
        aes(x = tree_depth, 
            y = min_n)) +
-  geom_point(aes(color = factor(learn_rate),
-                 size = trees),
+  geom_point(aes(color = factor(learn_rate), #coloring the bubbles based on learn_rate
+                 size = trees), #size of the bubbles are based on the tress
              alpha = .5,
              show.legend = FALSE)
 ```
@@ -408,15 +424,25 @@ ggplot(data = xgb_grid,
 ## 3. Model Tuning
 
 ```{r xgb_grid_result}
+
+#install.packages("doParallel")
+#install.packages("parallel")
+
+#library(doParallel)
+#library(parallel)
+
 set.seed(76544)
 
-xgb_res <- ##(object = xgb_spec,
+#parallel processing
+registerDoParallel(cores = parallel::detectCores()-1)
+
+xgb_res <- (object = xgb_spec,
                       preprocessor = weather_recipe,
                       resamples = resampling_foldcv,
                       grid = xgb_grid,
                       control = control_race(save_pred = TRUE))
 
-
+stopImplicitCluster()
 
 beepr::beep()
 xgb_res$.metrics[[2]]
