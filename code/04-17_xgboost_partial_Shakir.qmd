@@ -404,7 +404,7 @@ xgb_grid <- grid_latin_hypercube(
   learn_rate(),
   trees(),
   
-  size = 100 #100 combinations of all 4 hyperparameters to fine tune these hyperparameters
+  size = 100 #100 combinations of all 4 hyperparameters to fine tune these hyperparameters; using more may yield better results
   
 )
 
@@ -436,7 +436,7 @@ set.seed(76544)
 #parallel processing
 registerDoParallel(cores = parallel::detectCores()-1)
 
-xgb_res <- (object = xgb_spec,
+xgb_res <- tune_race_anova(object = xgb_spec,
                       preprocessor = weather_recipe,
                       resamples = resampling_foldcv,
                       grid = xgb_grid,
@@ -445,7 +445,9 @@ xgb_res <- (object = xgb_spec,
 stopImplicitCluster()
 
 beepr::beep()
+
 xgb_res$.metrics[[2]]
+
 ```
 
 ## 4. Select Best Models
@@ -474,6 +476,8 @@ best_rmse_pct_loss <- xgb_res %>%
 best_rmse_pct_loss
 ```
 
+
+
 ```{r}
 # Based on lowest RMSE within 1 se
 best_rmse_one_std_err <- xgb_res %>% 
@@ -497,6 +501,9 @@ best_r2 <- xgb_res %>%
 best_r2
 ```
 
+
+
+
 ```{r}
 # Based on lowers R2 within 1% loss
 best_r2_pct_loss <- xgb_res %>% 
@@ -508,6 +515,9 @@ best_r2_pct_loss <- xgb_res %>%
 
 best_r2_pct_loss
 ```
+
+
+
 
 ```{r}
 # Based on lowest R2 within 1 se
@@ -532,6 +542,8 @@ best_rmse %>%
             best_r2_one_std_error)
 ```
 
+
+
 ## 5. Final Specification
 
 ```{r final_spec_fit}
@@ -546,6 +558,8 @@ final_spec <- boost_tree(
 
 final_spec
 ```
+
+
 
 ## 6. Final Fit and Predictions
 
