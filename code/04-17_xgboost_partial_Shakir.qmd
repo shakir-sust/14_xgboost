@@ -575,7 +575,7 @@ final_fit %>%
   collect_predictions()
 ```
 
-## 7. Evaluate on Test Set
+## 7. Evaluate on *Test Set*
 
 ```{r final_fit_metrics}
 final_fit %>%
