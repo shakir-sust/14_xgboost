@@ -259,35 +259,46 @@ weather
 
 # ML workflow
 
-## 1. Pre-processing
+## 1. Pre-processing [initial split]
 
 ```{r weather_split}
+
 set.seed(931735) # Setting seed to get reproducible results 
+
 weather_split <- initial_split(
   weather, 
   prop = .7, # proption of split same as previous codes
   strata = strength_gtex  # Stratify by target variable
   )
+
 weather_split
+
 ```
 
-### a. Data split
+### a. Data split [for training set and testing set]
 
 For data split, let's use **70% training / 30% testing**.
 
 ```{r weather_train}
+
 weather_train <- training(weather_split)  # 70% of data
+
 weather_train #This is your traing data frame
+
 ```
 
 ```{r weather_test}
+
 weather_test <- testing(weather_split)    # 30% of data
+
 weather_test
+
 ```
 
-### b. Distribution of target variable
+### b. Distribution of target variable [Comparing distribution of predicted/target variable in training and test sets]
 
 ```{r distribution}
+
 ggplot() +
   geom_density(data = weather_train, 
                aes(x = strength_gtex),
@@ -361,21 +372,16 @@ XgBoost **hyperparameters**:
 -   **`learn_rate`**: Also known as `eta`, it controls how much each additional tree contributes to the overall model. Smaller values make the model more stable but require more trees.
 
 ```{r xgb_spec}
+
 xgb_spec <- boost_tree(
   trees = tune(),
   tree_depth = tune(),  # Maximum depth of each tree
   min_n = tune(),  # Minimum samples required to split a node
-  learn_rate = tune()) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
+  learn_rate = tune()
+  ) %>% #Specifying XgBoost as our model type, asking to tune the hyperparameters
   set_engine("xgboost") %>% #specify engine 
-  set_mode("regression")  # Set to mode
-   # Total number of boosting iterations
-        
-            
-        # Step size shrinkage for each boosting step
-
-       
-  
-       
+  set_mode("regression")  # Set to mode #If the predicted (y) variable is numerical, we mention "regression" inside "set_mode()", if the predicted (y) variable is categorical, we mention "classification" inside "set_mode()"
+ 
 xgb_spec
 
 ```
@@ -385,12 +391,15 @@ xgb_spec
 We use 10-fold cross-validation to evaluate model performance during tuning:
 
 ```{r}
+
 set.seed(235) #34549
+
 resampling_foldcv <- vfold_cv(weather_train, # Create 5-fold cross-validation resampling object from training data
                               v = 10)
 
 resampling_foldcv
 resampling_foldcv$splits[[1]]
+
 ```
 
 ### c. Hyperparameter grid with Latin Hypercube Sampling
@@ -398,20 +407,25 @@ resampling_foldcv$splits[[1]]
 We use Latin hypercube sampling to generate a diverse grid of hyperparameter combinations:
 
 ```{r }
+
 xgb_grid <- grid_latin_hypercube(
   tree_depth(),
   min_n(),
   learn_rate(),
   trees(),
   
-  size = 100 #100 combinations of all 4 hyperparameters to fine tune these hyperparameters; using more may yield better results
+  size = 100 # specifying the number of hyperparameter combinations to be used in the grid search  #100 combinations of all 4 hyperparameters to fine tune these hyperparameters; using more may yield better results
   
 )
 
 xgb_grid
+
 ```
 
+
+
 ```{r}
+
 ggplot(data = xgb_grid,
        aes(x = tree_depth, 
            y = min_n)) +
@@ -419,7 +433,10 @@ ggplot(data = xgb_grid,
                  size = trees), #size of the bubbles are based on the tress
              alpha = .5,
              show.legend = FALSE)
+
 ```
+
+
 
 ## 3. Model Tuning
 
@@ -455,7 +472,9 @@ xgb_res$.metrics[[2]]
 We select the best models using three strategies (best, within 1 SE, within 2% loss) which we learned in class:
 
 ```{r}
+
 # Based on lowest RMSE
+
 best_rmse <- xgb_res %>% 
   select_best(metric = "rmse")%>% 
   mutate(source = "best_rmse")
@@ -464,8 +483,11 @@ best_rmse
 
 ```
 
+
 ```{r}
+
 # Based on lowers RMSE within 1% loss
+
 best_rmse_pct_loss <- xgb_res %>% 
   select_by_pct_loss("min_n",
                      metric = "rmse",
@@ -474,9 +496,8 @@ best_rmse_pct_loss <- xgb_res %>%
   mutate(source = "best_rmse_pct_loss")
 
 best_rmse_pct_loss
+
 ```
-
-
 
 ```{r}
 # Based on lowest RMSE within 1 se
@@ -501,9 +522,6 @@ best_r2 <- xgb_res %>%
 best_r2
 ```
 
-
-
-
 ```{r}
 # Based on lowers R2 within 1% loss
 best_r2_pct_loss <- xgb_res %>% 
@@ -515,9 +533,6 @@ best_r2_pct_loss <- xgb_res %>%
 
 best_r2_pct_loss
 ```
-
-
-
 
 ```{r}
 # Based on lowest R2 within 1 se
@@ -542,8 +557,6 @@ best_rmse %>%
             best_r2_one_std_error)
 ```
 
-
-
 ## 5. Final Specification
 
 ```{r final_spec_fit}
@@ -558,8 +571,6 @@ final_spec <- boost_tree(
 
 final_spec
 ```
-
-
 
 ## 6. Final Fit and Predictions
 
