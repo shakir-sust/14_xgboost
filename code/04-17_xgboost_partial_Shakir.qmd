@@ -246,8 +246,11 @@ library(doParallel)   # For parallel computing (useful during resampling/tuning)
 -   Splitting data helps validate generalizability by preventing the model from seeing the test data during training.
 
 ```{r weather}
+
 weather <- read_csv("../data/weather_monthsum.csv")
+
 weather
+
 ```
 
 -   We begin by splitting the dataset into **training** and **testing** sets.
@@ -334,28 +337,38 @@ Let's check what steps are required for an elastic net model (linear_reg). We ca
 > Differently from elastic net, variables do not need to be normalized in XgBoost, so we'll skip this step.
 
 ```{r weather_recipe}
+
 # Create recipe for data preprocessing
-weather_recipe <- recipe(strength_gtex ~ ., data = weather_train) %>% # Remove identifier columns and months not in growing season
+
+weather_recipe <- recipe(strength_gtex ~ ., 
+                         data = weather_train
+                         ) %>% # Remove identifier columns and months not in growing season
   step_rm(
     year,       # Remove year identifier
     site,       # Remove site identifier
     matches("Jan|Feb|Mar|Apr|Nov|Dec")  # Remove non-growing season months
   )
+
 weather_recipe
+
 ```
 
 ```{r weather_prep}
+
 # Prep the recipe to estimate any required statistics
+
 weather_prep <- weather_recipe %>% 
   prep()
 
 # Examine preprocessing steps
+
 weather_prep
+
 ```
 
 ## 2. Training
 
-### a. Model specification
+### a. Model specification [and hyperparameter fine tuning]
 
 First, let's specify:\
 - the **type of model** we want to train\
@@ -386,7 +399,7 @@ xgb_spec
 
 ```
 
-### b. Cross-validation setup
+### b. V-fold Cross-validation setup
 
 We use 10-fold cross-validation to evaluate model performance during tuning:
 
@@ -402,18 +415,18 @@ resampling_foldcv$splits[[1]]
 
 ```
 
-### c. Hyperparameter grid with Latin Hypercube Sampling
+### c. Hyperparameter grid search with Latin Hypercube Sampling
 
 We use Latin hypercube sampling to generate a diverse grid of hyperparameter combinations:
 
 ```{r }
 
 xgb_grid <- grid_latin_hypercube(
+  trees(),
   tree_depth(),
   min_n(),
   learn_rate(),
-  trees(),
-  
+ 
   size = 100 # specifying the number of hyperparameter combinations to be used in the grid search  #100 combinations of all 4 hyperparameters to fine tune these hyperparameters; using more may yield better results
   
 )
@@ -451,15 +464,16 @@ ggplot(data = xgb_grid,
 set.seed(76544)
 
 #parallel processing
-registerDoParallel(cores = parallel::detectCores()-1)
+registerDoParallel(cores = parallel::detectCores()-1) # starts parallel processing
 
-xgb_res <- tune_race_anova(object = xgb_spec,
-                      preprocessor = weather_recipe,
-                      resamples = resampling_foldcv,
-                      grid = xgb_grid,
+xgb_res <- tune_race_anova(
+                      object = xgb_spec, # model specification object
+                      preprocessor = weather_recipe, # recipe object
+                      resamples = resampling_foldcv, # v-fold cross-validation object
+                      grid = xgb_grid, # grid search object
                       control = control_race(save_pred = TRUE))
 
-stopImplicitCluster()
+stopImplicitCluster() # stops parallel processing
 
 beepr::beep()
 
@@ -486,7 +500,7 @@ best_rmse
 
 ```{r}
 
-# Based on lowers RMSE within 1% loss
+# Based on lowest RMSE within 1% loss
 
 best_rmse_pct_loss <- xgb_res %>% 
   select_by_pct_loss("min_n",
@@ -500,7 +514,9 @@ best_rmse_pct_loss
 ```
 
 ```{r}
-# Based on lowest RMSE within 1 se
+
+# Based on lowest RMSE within 1 SE
+
 best_rmse_one_std_err <- xgb_res %>% 
   select_by_one_std_err(metric = "rmse",
                         eval_time = 100,
@@ -509,21 +525,25 @@ best_rmse_one_std_err <- xgb_res %>%
   mutate(source = "best_rmse_one_std_err")
 
 best_rmse_one_std_err
+
 ```
 
 Here we use all three methods which we learn in this class for R2.
 
 ```{r}
+
 # Based on greatest R2
+
 best_r2 <- xgb_res %>% 
   select_best(metric = "rsq")%>% 
   mutate(source = "best_r2")
 
 best_r2
+
 ```
 
 ```{r}
-# Based on lowers R2 within 1% loss
+# Based on greatest R2 within 1% loss
 best_r2_pct_loss <- xgb_res %>% 
   select_by_pct_loss("min_n",
                      metric = "rsq",
@@ -535,7 +555,7 @@ best_r2_pct_loss
 ```
 
 ```{r}
-# Based on lowest R2 within 1 se
+# Based on greatest R2 within 1 se
 best_r2_one_std_error <- xgb_res %>% 
   select_by_one_std_err(metric = "rsq",
                         eval_time = 100,
@@ -577,20 +597,25 @@ final_spec
 ## Validation
 
 ```{r final_fit}
+
 set.seed(10)
+
 final_fit <- last_fit(final_spec,
                 weather_recipe,
                 split = weather_split)
 
 final_fit %>%
   collect_predictions()
+
 ```
 
 ## 7. Evaluate on *Test Set*
 
 ```{r final_fit_metrics}
+
 final_fit %>%
   collect_metrics()
+
 ```
 
 -R2 & RMSE = 0.2049.
@@ -629,6 +654,7 @@ final_spec %>%
 ## 9. Predicted vs Observed Plot
 
 ```{r}
+
 final_fit %>%
   collect_predictions() %>%
   ggplot(aes(x = strength_gtex,
@@ -638,6 +664,7 @@ final_fit %>%
   geom_smooth(method = "lm") +
   scale_x_continuous(limits = c(20, 40)) +
   scale_y_continuous(limits = c(20, 40)) 
+
 ```
 
 ## 10. Variable Importance
